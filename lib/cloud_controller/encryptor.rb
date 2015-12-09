@@ -1,10 +1,28 @@
 require 'securerandom'
 require 'openssl/cipher'
 require 'base64'
+require_relative './key_manager'
+require_relative './key'
 
 module VCAP::CloudController::Encryptor
   class << self
     ALGORITHM = 'AES-128-CBC'.freeze
+
+    def configure(config)
+      conf_key = 'crypto_keys'.to_sym
+      return unless config.key?(conf_key)
+      # keys = send(conf_key)
+      dkeys = Hash.new
+      ekey = VCAP::CloudController::Key.new(
+        config[conf_key][:encryption][:label].to_sym,
+        config[conf_key][:encryption][:passphrase]
+      )
+
+      config[conf_key][:decryption].each do |k|
+        dkeys[k[:label].to_sym] = VCAP::CloudController::Key.new(k[:label].to_sym, k[:passphrase])
+      end
+      self.key_manager=(VCAP::CloudController::KeyManager.new(ekey, dkeys))
+    end
 
     def generate_salt
       SecureRandom.hex(4).to_s
@@ -20,7 +38,7 @@ module VCAP::CloudController::Encryptor
       run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt)
     end
 
-    attr_accessor :db_encryption_key
+    attr_accessor :db_encryption_key, :key_manager
 
     private
 
