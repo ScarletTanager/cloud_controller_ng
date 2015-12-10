@@ -16,7 +16,7 @@ module VCAP::CloudController
     end
 
     def decryption_key(label)
-      @dkeys[label.to_sym]
+      @dkeys[label]
     end
   end
 end

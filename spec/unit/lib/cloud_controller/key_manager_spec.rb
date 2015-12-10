@@ -8,13 +8,13 @@ module VCAP::CloudController
      let(:pp2) { 'anotherpassphrase' }
      let(:pp3) { 'stillanotherpassphrase' }
      # let(:salt) { Encryptor.generate_salt }
-     # let(:ekey) { Key.new(:v1, pp1, salt) }
-     let(:ekey) { Key.new(:v1, pp1) }
+     # let(:ekey) { Key.new('1', pp1, salt) }
+     let(:ekey) { Key.new('1', pp1) }
      let(:dkeys) { {
-       :v2 => Key.new(:v2, pp2),
-       :v3 => Key.new(:v3, pp3) } }
-       # :v2 => Key.new(:v2, pp2, salt),
-       # :v3 => Key.new(:v3, pp3, salt)} }
+       '2' => Key.new('2', pp2),
+       '3' => Key.new('3', pp3) } }
+       # '2' => Key.new('2', pp2, salt),
+       # '3' => Key.new('3', pp3, salt)} }
 
     context 'Working with keys' do
       before do
@@ -22,8 +22,8 @@ module VCAP::CloudController
       end
       it 'returns the right keys' do
         expect(@km.encryption_key).to eql(ekey)
-        expect(@km.decryption_key(:v2)).to eql(dkeys[:v2])
-        expect(@km.decryption_key(:v3)).to eql(dkeys[:v3])
+        expect(@km.decryption_key('2')).to eql(dkeys['2'])
+        expect(@km.decryption_key('3')).to eql(dkeys['3'])
       end
     end
 
@@ -32,15 +32,15 @@ module VCAP::CloudController
       let(:pp2) { 'anotherpassphrase' }
       let(:pp3) { 'stillanotherpassphrase' }
       # let(:salt) { Encryptor.generate_salt }
-      let(:ekey) { Key.new(:v1, pp1) }
-      # let(:ekey) { Key.new(:v1, pp1, salt) }
+      let(:ekey) { Key.new('1', pp1) }
+      # let(:ekey) { Key.new('1', pp1, salt) }
       let(:dkeys) { {
-        :v1 => Key.new(:v1, pp1),
-        :v2 => Key.new(:v2, pp2),
-        :v3 => Key.new(:v3, pp3) } }
-        # :v1 => Key.new(:v1, pp1, salt),
-        # :v2 => Key.new(:v2, pp2, salt),
-        # :v3 => Key.new(:v3, pp3, salt)} }
+        '1' => Key.new('1', pp1),
+        '2' => Key.new('2', pp2),
+        '3' => Key.new('3', pp3) } }
+        # '1' => Key.new('1', pp1, salt),
+        # '2' => Key.new('2', pp2, salt),
+        # '3' => Key.new('3', pp3, salt)} }
 
       it 'raises an exception if the encryption key also exists in the decryption key list' do
         expect {

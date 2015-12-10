@@ -276,16 +276,16 @@ module VCAP::CloudController
           },
           crypto_keys: {
             encryption: {
-              label: 'v3',
+              label: '3',
               passphrase: 'encryption_passphrase',
             },
             decryption: [
               {
-                label: 'v2',
+                label: '2',
                 passphrase: 'v2_decryption_passphrase',
               },
               {
-                label: 'v1',
+                label: '1',
                 passphrase: 'v1_decryption_passphrase',
               },
             ],
@@ -300,8 +300,8 @@ module VCAP::CloudController
 
       it 'sets up the db encryption and decryption key passphrases' do
         Config.configure_components(@test_config)
-        expect(Encryptor.key_manager.decryption_key(:v1)).not_to be_nil
-        expect(Encryptor.key_manager.encryption_key.label).to eql(:v3)
+        expect(Encryptor.key_manager.decryption_key('1')).not_to be_nil
+        expect(Encryptor.key_manager.encryption_key.label).to eql('3')
         expect(Encryptor.key_manager.encryption_key.key).not_to eql('encryption_passphrase')
       end
 
