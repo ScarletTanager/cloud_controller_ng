@@ -47,6 +47,7 @@ module VCAP::CloudController
       logger.debug 'cc.create', model: self.class.model_class_name, attributes: request_attrs
       service_instance = create_instance(request_attrs)
       @services_event_repository.record_user_provided_service_instance_event(:create, service_instance, request_attrs)
+      route_service_warning(service_instance) unless route_services_enabled?
 
       [
         HTTP::CREATED,
@@ -115,11 +116,21 @@ module VCAP::CloudController
 
     private
 
+    def route_services_enabled?
+      @config[:route_services_enabled]
+    end
+
+    def route_service_warning(service_instance)
+      if service_instance.route_service?
+        add_warning(ServiceInstance::ROUTE_SERVICE_WARNING)
+      end
+    end
+
     def bind_route(route_guid, instance_guid)
       logger.debug 'cc.association.add', model: self.class.model_class_name, guid: instance_guid, assocation: :routes, other_guid: route_guid
 
       binding_manager = ServiceInstanceBindingManager.new(@services_event_repository, self, logger)
-      route_binding = binding_manager.create_route_service_instance_binding(route_guid, instance_guid)
+      route_binding = binding_manager.create_route_service_instance_binding(route_guid, instance_guid, route_services_enabled?)
 
       [HTTP::CREATED, object_renderer.render_json(self.class, route_binding.service_instance, @opts)]
     rescue ServiceInstanceBindingManager::RouteNotFound

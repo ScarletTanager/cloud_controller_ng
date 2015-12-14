@@ -310,6 +310,59 @@ module VCAP::CloudController
           expect(event).to match_service_instance(instance)
         end
 
+        context 'when the catalog response includes services that require route forwarding' do
+          let(:service) { Service.make(:routing, service_broker: service_broker) }
+          let(:plan) { ServicePlan.make(:v2, service: service) }
+
+          context 'when route service is disabled' do
+            before do
+              TestConfig.config[:route_services_enabled] = false
+            end
+
+            it 'should succeed with a warning' do
+              instance = create_managed_service_instance(accepts_incomplete: 'false')
+
+              expect(last_response).to have_status_code(201)
+              expect(last_response.headers['Location']).to eq "/v2/service_instances/#{instance.guid}"
+
+              expect(instance.credentials).to eq({})
+              expect(instance.dashboard_url).to eq('the dashboard_url')
+              last_operation = decoded_response['entity']['last_operation']
+              expect(last_operation['state']).to eq 'succeeded'
+              expect(last_operation['description']).to eq ''
+              expect(last_operation['type']).to eq 'create'
+
+              escaped_warning = last_response.headers['X-Cf-Warnings']
+              expect(escaped_warning).to_not be_nil
+              warning = CGI.unescape(escaped_warning)
+              expect(warning).to match /Support for route services is disabled. This service instance cannot be bound to a route./
+            end
+          end
+
+          context 'when route service is enabled' do
+            before do
+              TestConfig.config['route_services_enabled'] = true
+            end
+
+            it 'should succeed without warnings' do
+              instance = create_managed_service_instance(accepts_incomplete: 'false')
+
+              expect(last_response).to have_status_code(201)
+              expect(last_response.headers['Location']).to eq "/v2/service_instances/#{instance.guid}"
+
+              expect(instance.credentials).to eq({})
+              expect(instance.dashboard_url).to eq('the dashboard_url')
+              last_operation = decoded_response['entity']['last_operation']
+              expect(last_operation['state']).to eq 'succeeded'
+              expect(last_operation['description']).to eq ''
+              expect(last_operation['type']).to eq 'create'
+
+              warning = last_response.headers['X-Cf-Warnings']
+              expect(warning).to be_nil
+            end
+          end
+        end
+
         describe 'instance tags' do
           context 'when service instance tags are sent with the create request' do
             it 'saves the service instance tags' do
@@ -2580,6 +2633,7 @@ module VCAP::CloudController
 
       before do
         stub_bind(service_instance, opts)
+        TestConfig.config['route_services_enabled'] = true
       end
 
       it 'associates the route and the service instance' do
@@ -2628,11 +2682,24 @@ module VCAP::CloudController
       context 'when the service instance is not a route service' do
         let(:service_instance) { ManagedServiceInstance.make(space: space) }
 
-        it 'raises an error' do
+        it 'raises a 400 error' do
           put "/v2/service_instances/#{service_instance.guid}/routes/#{route.guid}", {}, headers_for(developer)
           expect(last_response.status).to eq(400)
           expect(JSON.parse(last_response.body)['description']).
             to include('does not support route binding')
+        end
+      end
+
+      context 'when route service is disabled' do
+        before do
+          TestConfig.config[:route_services_enabled] = false
+        end
+
+        it 'should raise a 403 error' do
+          put "/v2/service_instances/#{service_instance.guid}/routes/#{route.guid}", {}, headers_for(developer)
+
+          expect(last_response).to have_status_code(403)
+          expect(decoded_response['description']).to eq 'Support for route services is disabled'
         end
       end
 

@@ -72,16 +72,16 @@ module VCAP::CloudController
       accepts_incomplete = convert_flag_to_bool(params['accepts_incomplete'])
 
       service_plan = ServicePlan.first(guid: request_attrs['service_plan_guid'])
-      space = Space.filter(guid: request_attrs['space_guid']).first
-      organization = space.organization if space
-
       service_plan_not_found! unless service_plan
+
+      space = Space.filter(guid: request_attrs['space_guid']).first
+      space_not_found! unless space
+      organization = space.organization if space
 
       service_instance = ManagedServiceInstance.new(request_attrs.except('parameters'))
       validate_access(:create, service_instance)
 
       invalid_service_instance!(service_instance) unless service_instance.valid?
-      space_not_found! unless space
 
       if service_plan.broker_private?
         space_not_authorized! unless (service_plan.service_broker.space == space)
@@ -91,6 +91,8 @@ module VCAP::CloudController
 
       service_instance = ServiceInstanceCreate.new(@services_event_repository, logger).
                              create(request_attrs, accepts_incomplete)
+
+      route_service_warning(service_instance) unless route_services_enabled?
 
       [status_from_operation_state(service_instance),
        { 'Location' => "#{self.class.path}/#{service_instance.guid}" },
@@ -248,7 +250,7 @@ module VCAP::CloudController
       logger.debug 'cc.association.add', model: self.class.model_class_name, guid: instance_guid, assocation: :routes, other_guid: route_guid
 
       binding_manager = ServiceInstanceBindingManager.new(@services_event_repository, self, logger)
-      route_binding = binding_manager.create_route_service_instance_binding(route_guid, instance_guid)
+      route_binding = binding_manager.create_route_service_instance_binding(route_guid, instance_guid, route_services_enabled?)
 
       [HTTP::CREATED, object_renderer.render_json(self.class, route_binding.service_instance, @opts)]
     rescue ServiceInstanceBindingManager::ServiceInstanceNotBindable
@@ -261,6 +263,8 @@ module VCAP::CloudController
       raise VCAP::Errors::ApiError.new_from_details('ServiceInstanceNotFound', instance_guid)
     rescue ServiceInstanceBindingManager::RouteServiceRequiresDiego
       raise VCAP::Errors::ApiError.new_from_details('ServiceInstanceRouteServiceRequiresDiego')
+    rescue ServiceInstanceBindingManager::RouteServiceDisabled
+      raise VCAP::Errors::ApiError.new_from_details('ServiceInstanceRouteServiceDisabled')
     end
 
     def remove_related(guid, name, other_guid)
@@ -284,6 +288,16 @@ module VCAP::CloudController
     end
 
     private
+
+    def route_services_enabled?
+      @config[:route_services_enabled]
+    end
+
+    def route_service_warning(service_instance)
+      if service_instance.route_service?
+        add_warning(ServiceInstance::ROUTE_SERVICE_WARNING)
+      end
+    end
 
     def validate_create_request
       @request_attrs = self.class::CreateMessage.decode(body).extract(stringify_keys: true)

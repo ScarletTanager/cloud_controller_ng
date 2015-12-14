@@ -50,22 +50,24 @@ module VCAP::CloudController::Validators
     end
   end
 
-  class LifecycleDataValidator < ActiveModel::Validator
+  class LifecycleValidator < ActiveModel::Validator
     def validate(record)
-      config = record.data_validation_config
-      return if config.skip_validation
+      data_message = {
+        VCAP::CloudController::Lifecycles::BUILDPACK => VCAP::CloudController::BuildpackLifecycleDataMessage,
+        VCAP::CloudController::Lifecycles::DOCKER    => VCAP::CloudController::DockerLifecycleDataMessage,
+      }
 
-      if config.data.nil? && !config.allow_nil
-        record.errors[:lifecycle].concat ['data must be present']
-      elsif config.data.is_a?(Hash)
-        validate_data_model(config, record)
+      lifecycle_data_message_class = data_message[record.lifecycle_type]
+      if lifecycle_data_message_class.nil?
+        record.errors[:lifecycle_type].concat ["is not included in the list: #{data_message.keys.join(', ')}"]
+        return
       end
-    end
 
-    def validate_data_model(config, record)
-      data_model = "VCAP::CloudController::#{config.data_class}".constantize.new(config.data.symbolize_keys)
-      if !data_model.valid?
-        record.errors[:lifecycle].concat data_model.errors.full_messages
+      return unless record.lifecycle_data.is_a?(Hash)
+
+      lifecycle_data_message = lifecycle_data_message_class.create_from_http_request(record.lifecycle_data)
+      unless lifecycle_data_message.valid?
+        record.errors[:lifecycle].concat lifecycle_data_message.errors.full_messages
       end
     end
   end

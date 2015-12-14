@@ -34,7 +34,8 @@ module VCAP::CloudController
         @service_manager,
         @services_event_repository,
         self,
-        self
+        self,
+        route_services_enabled?
       )
 
       broker = create_action.create(params)
@@ -56,7 +57,7 @@ module VCAP::CloudController
         @service_manager,
         @services_event_repository,
         self,
-
+        route_services_enabled?
       )
       params = UpdateMessage.decode(body).extract
       broker = update_action.update(guid, params)
@@ -66,10 +67,10 @@ module VCAP::CloudController
     end
 
     def delete(guid)
-      validate_access(:delete, ServiceBroker)
       broker = ServiceBroker.find(guid: guid)
       return HTTP::NOT_FOUND unless broker
 
+      validate_access(:delete, broker)
       VCAP::Services::ServiceBrokers::ServiceBrokerRemover.new(broker, @services_event_repository).execute!
       @services_event_repository.record_broker_event(:delete, broker, {})
 
@@ -92,6 +93,10 @@ module VCAP::CloudController
     define_routes
 
     private
+
+    def route_services_enabled?
+      @config[:route_services_enabled]
+    end
 
     def url_of(broker)
       "#{self.class.path}/#{broker.guid}"

@@ -129,7 +129,7 @@ module VCAP::CloudController
 
           message = DropletCreateMessage.new(params)
           expect(message).not_to be_valid
-          expect(message.errors[:lifecycle_type]).to include("can't be blank")
+          expect(message.errors[:lifecycle_type]).to include('must be a string')
         end
 
         it 'must be a valid lifecycle type' do
@@ -138,7 +138,16 @@ module VCAP::CloudController
           message = DropletCreateMessage.new(params)
 
           expect(message).not_to be_valid
-          expect(message.errors[:lifecycle_type]).to include("is not included in the list: #{DropletCreateMessage::LIFECYCLE_TYPES.join(', ')}")
+          expect(message.errors[:lifecycle_type]).to include('must be a string')
+        end
+
+        it 'must provide a data field' do
+          params = { lifecycle: { type: 'buildpack' } }
+
+          message = DropletCreateMessage.new(params)
+
+          expect(message).not_to be_valid
+          expect(message.errors[:lifecycle_data]).to include('must be a hash')
         end
 
         describe 'buildpack lifecycle' do
@@ -149,15 +158,6 @@ module VCAP::CloudController
 
             expect(message).not_to be_valid
             expect(message.errors[:lifecycle]).to include('Stack must be a string')
-          end
-
-          it 'must be in the database' do
-            params = { lifecycle: { type: 'buildpack', data: { buildpack: 'java', stack: 'redhat' } } }
-
-            message = DropletCreateMessage.new(params)
-
-            expect(message).not_to be_valid
-            expect(message.errors[:lifecycle]).to include('Stack is invalid')
           end
 
           it 'must provide a valid buildpack' do
@@ -172,7 +172,7 @@ module VCAP::CloudController
 
         describe 'docker lifecycle' do
           it 'works' do
-            params  = { lifecycle: { type: 'docker' } }
+            params  = { lifecycle: { type: 'docker', data: {} } }
             message = DropletCreateMessage.new(params)
             expect(message).to be_valid
           end

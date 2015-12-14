@@ -166,23 +166,74 @@ module VCAP::CloudController
             })
       end
 
-      context 'when the service instance is invalid' do
-        context 'because the route_service_url is invalid' do
-          let(:req) do
-            {
-              'name'              => 'my-upsi',
-              'credentials'       => { 'uri' => 'https://user:password@service-location.com:port/db' },
-              'space_guid'        => space.guid,
-              'route_service_url' => 'http://route.url.com'
-            }
+      context 'when the route_service_url is invalid' do
+        let(:req) do
+          {
+            'name'              => 'my-upsi',
+            'credentials'       => { 'uri' => 'https://user:password@service-location.com:port/db' },
+            'space_guid'        => space.guid,
+            'route_service_url' => 'http://route.url.com'
+          }
+        end
+
+        it 'returns CF-ServiceInstanceInvalid' do
+          post '/v2/user_provided_service_instances', req.to_json, headers_for(developer)
+
+          expect(last_response).to have_status_code(400)
+          expect(decoded_response['error_code']).to eq('CF-ServiceInstanceRouteServiceURLInvalid')
+          expect(decoded_response['description']).to include 'must be https'
+        end
+      end
+
+      context 'route service warnings' do
+        context 'when route service is disabled' do
+          before do
+            TestConfig.config[:route_services_enabled] = false
           end
 
-          it 'returns CF-ServiceInstanceInvalid' do
+          it 'should succeed with a warning' do
             post '/v2/user_provided_service_instances', req.to_json, headers_for(developer)
 
-            expect(last_response).to have_status_code(400)
-            expect(decoded_response['error_code']).to eq('CF-ServiceInstanceRouteServiceURLInvalid')
-            expect(decoded_response['description']).to include 'must be https'
+            expect(last_response).to have_status_code 201
+
+            escaped_warning = last_response.headers['X-Cf-Warnings']
+            expect(escaped_warning).to_not be_nil
+            warning = CGI.unescape(escaped_warning)
+            expect(warning).to match /Support for route services is disabled. This service instance cannot be bound to a route./
+          end
+
+          context 'when the service is not a route service' do
+            let(:req) do
+              {
+                  'name'              => 'my-upsi',
+                  'credentials'       => { 'uri' => 'https://user:password@service-location.com:port/db' },
+                  'space_guid'        => space.guid
+              }
+            end
+
+            it 'should succeed without a warning' do
+              post '/v2/user_provided_service_instances', req.to_json, headers_for(developer)
+
+              expect(last_response).to have_status_code 201
+
+              escaped_warning = last_response.headers['X-Cf-Warnings']
+              expect(escaped_warning).to be_nil
+            end
+          end
+        end
+
+        context 'when route service is enabled' do
+          before do
+            TestConfig.config[:route_services_enabled] = true
+          end
+
+          it 'should succeed without warnings' do
+            post '/v2/user_provided_service_instances', req.to_json, headers_for(developer)
+
+            expect(last_response.status).to eq 201
+
+            warning = last_response.headers['X-Cf-Warnings']
+            expect(warning).to be_nil
           end
         end
       end
@@ -329,6 +380,8 @@ module VCAP::CloudController
       let(:route) { VCAP::CloudController::Route.make(space: space) }
       let(:opts) { {} }
       let(:service_instance) { UserProvidedServiceInstance.make(:routing, space: space) }
+
+      before { TestConfig.config[:route_services_enabled] = true }
 
       it 'associates the route and the service instance' do
         get "/v2/user_provided_service_instances/#{service_instance.guid}/routes", {}, headers_for(developer)

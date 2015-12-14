@@ -28,12 +28,14 @@ Rails.application.routes.draw do
   patch '/processes/:guid', to: 'processes#update'
   delete '/processes/:guid/instances/:index', to: 'processes#terminate'
   put '/processes/:guid/scale', to: 'processes#scale'
+  get '/processes/:guid/stats', to: 'processes#stats'
 
   get '/v3/processes', to: 'processes#index'
   get '/v3/processes/:guid', to: 'processes#show'
   patch '/v3/processes/:guid', to: 'processes#update'
   delete '/v3/processes/:guid/instances/:index', to: 'processes#terminate'
   put '/v3/processes/:guid/scale', to: 'processes#scale'
+  get '/v3/processes/:guid/stats', to: 'processes#stats'
 
   # packages
   get '/v3/packages', to: 'packages#index'
@@ -73,11 +75,13 @@ Rails.application.routes.draw do
   get '/v3/apps/:guid/processes/:type', to: 'apps_processes#show'
   put '/v3/apps/:guid/processes/:type/scale', to: 'apps_processes#scale'
   delete '/v3/apps/:guid/processes/:type/instances/:index', to: 'apps_processes#terminate'
+  get '/v3/apps/:guid/processes/:type/stats', to: 'apps_processes#stats'
 
   get '/apps/:guid/processes', to: 'apps_processes#index'
   get '/apps/:guid/processes/:type', to: 'apps_processes#show'
   put '/apps/:guid/processes/:type/scale', to: 'apps_processes#scale'
   delete '/apps/:guid/processes/:type/instances/:index', to: 'apps_processes#terminate'
+  get '/apps/:guid/processes/:type/stats', to: 'apps_processes#stats'
 
   # apps_packages
   get '/v3/apps/:guid/packages', to: 'apps_packages#index'

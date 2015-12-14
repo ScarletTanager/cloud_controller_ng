@@ -172,13 +172,17 @@ module VCAP::CloudController
       # * memory is changed
       # * health check type is changed
       # * enable_ssh is changed
+      # * ports are changed
       #
       # this is to indicate that the running state of an application has changed,
       # and that the system should converge on this new version.
+
       (column_changed?(:state) ||
        column_changed?(:memory) ||
        column_changed?(:health_check_type) ||
-       column_changed?(:enable_ssh)) && started?
+       column_changed?(:enable_ssh) ||
+       changed_columns.include?(:ports)
+      ) && started?
     end
 
     def set_new_version
@@ -613,7 +617,32 @@ module VCAP::CloudController
       mark_routes_changed(route)
     end
 
+    def ports
+      if self.docker_image.present? && diego?
+        return docker_ports
+      end
+      super
+    end
+
     private
+
+    def docker_ports
+      if !self.needs_staging? && !self.current_saved_droplet.nil? && self.execution_metadata.present?
+        exposed_ports = []
+        begin
+          metadata = JSON.parse(self.execution_metadata)
+          unless metadata['ports'].nil?
+            metadata['ports'].each { |port|
+              if port['Protocol'] == 'tcp'
+                exposed_ports << port['Port']
+              end
+            }
+          end
+        rescue JSON::ParserError
+        end
+        exposed_ports
+      end
+    end
 
     def mark_routes_changed(_=nil)
       routes_already_changed = @routes_changed
