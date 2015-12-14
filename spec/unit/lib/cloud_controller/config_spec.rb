@@ -274,12 +274,35 @@ module VCAP::CloudController
               password: 'password',
             },
           },
+          crypto_keys: {
+            encryption: {
+              label: '3',
+              passphrase: 'encryption_passphrase',
+            },
+            decryption: [
+              {
+                label: '2',
+                passphrase: 'v2_decryption_passphrase',
+              },
+              {
+                label: '1',
+                passphrase: 'v1_decryption_passphrase',
+              },
+            ],
+          },
         }
       end
 
       it 'sets up the db encryption key' do
         Config.configure_components(@test_config.merge(db_encryption_key: '123-456'))
         expect(Encryptor.db_encryption_key).to eq('123-456')
+      end
+
+      it 'sets up the db encryption and decryption key passphrases' do
+        Config.configure_components(@test_config)
+        expect(Encryptor.key_manager.decryption_key('1')).not_to be_nil
+        expect(Encryptor.key_manager.encryption_key.label).to eql('3')
+        expect(Encryptor.key_manager.encryption_key.key).not_to eql('encryption_passphrase')
       end
 
       it 'sets up the account capacity' do

@@ -1,26 +1,114 @@
 require 'securerandom'
 require 'openssl/cipher'
 require 'base64'
+require_relative './key_manager'
+require_relative './key'
 
 module VCAP::CloudController::Encryptor
   class << self
     ALGORITHM = 'AES-128-CBC'.freeze
+    IV_LEN = 16
+
+    def configure(config)
+      conf_key = 'crypto_keys'.to_sym
+      return unless config.key?(conf_key)
+      dkeys = Hash.new
+      ekey = VCAP::CloudController::Key.new(
+        config[conf_key][:encryption][:label],
+        config[conf_key][:encryption][:passphrase]
+      )
+
+      config[conf_key][:decryption].each do |k|
+        dkeys[k[:label]] = VCAP::CloudController::Key.new(
+          k[:label],
+          k[:passphrase]
+        )
+      end
+
+      # TODO: add a rescue clause, KeyManager.new raises on key duplication
+      self.key_manager=(VCAP::CloudController::KeyManager.new(ekey, dkeys))
+    end
 
     def generate_salt
       SecureRandom.hex(4).to_s
     end
 
+    def generate_iv
+      OpenSSL::Random.random_bytes(IV_LEN)
+    end
+
+    def pack_format
+      "CA" + VCAP::CloudController::Key.label_maxlen.to_s +
+        "Ca" + IV_LEN.to_s + "Qa"
+    end
+
+    def encrypt_with_iv(input, salt, iv)
+      return nil unless input
+      return nil unless iv
+      return nil unless key_manager
+
+      cipher = make_cipher.encrypt
+
+      cipher.key=(key_manager.encryption_key.key)
+      cipher.iv=(iv)
+      
+      ciphertext = run_cipher(cipher, input, nil)
+
+      pack_format = "CA" +
+        VCAP::CloudController::Key.label_maxlen.to_s +
+        "Ca" + IV_LEN.to_s + "Qa" + ciphertext.bytesize.to_s
+
+
+      packed = [
+        key_manager.encryption_key.label.bytesize,
+        key_manager.encryption_key.label,
+        iv.bytesize,
+        iv,
+        ciphertext.bytesize,
+        ciphertext
+      ].pack(pack_format)
+
+      Base64.strict_encode64(packed)
+    end
+
     def encrypt(input, salt)
       return nil unless input
-      Base64.strict_encode64(run_cipher(make_cipher.encrypt, input, salt))
+      cipher = make_cipher.encrypt
+
+      if key_manager then
+        return encrypt_with_iv(input, salt, generate_iv)
+      else
+        cipher.pkcs5_keyivgen(db_encryption_key, salt)
+      end 
+
+      Base64.strict_encode64(run_cipher(cipher, input, salt))
     end
 
     def decrypt(encrypted_input, salt)
       return nil unless encrypted_input
-      run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt)
+      cipher = make_cipher.decrypt
+      decoded = Base64.decode64(encrypted_input)
+
+      if key_manager then
+        fields = decoded.unpack(pack_format)
+        ciphertext_len = fields[4]
+
+        key_label = fields[1].strip
+        if key_manager.decryption_key(key_label) != nil then
+          cipher.key=(key_manager.decryption_key(key_label).key)
+          cipher.iv=(fields[3])
+
+          fields = decoded.unpack(pack_format + ciphertext_len.to_s)
+          ciphertext = fields[5]
+          return run_cipher(cipher, ciphertext, nil)
+        end
+      end
+
+      cipher.pkcs5_keyivgen(db_encryption_key, salt)
+      run_cipher(cipher, decoded, salt)
     end
 
-    attr_accessor :db_encryption_key
+    attr_accessor :db_encryption_key, :key_manager
 
     private
 
@@ -29,7 +117,6 @@ module VCAP::CloudController::Encryptor
     end
 
     def run_cipher(cipher, input, salt)
-      cipher.pkcs5_keyivgen(db_encryption_key, salt)
       cipher.update(input).tap { |result| result << cipher.final }
     end
   end

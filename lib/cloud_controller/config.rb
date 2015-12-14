@@ -179,6 +179,19 @@ module VCAP::CloudController
 
         :db_encryption_key => String,
 
+        optional(:crypto_keys) => {
+          :encryption => {
+            :label => String,
+            :passphrase => String,
+          },
+          :decryption => [
+            {
+              :label => String,
+              :passphrase => String,
+            }
+          ],
+        },
+
         optional(:flapping_crash_count_threshold) => Integer,
 
         optional(:varz_port) => Integer,
@@ -256,6 +269,7 @@ module VCAP::CloudController
         @config = config
 
         Encryptor.db_encryption_key = config[:db_encryption_key]
+        Encryptor.configure(config)
         AccountCapacity.configure(config)
         ResourcePool.instance = ResourcePool.new(config)
 
