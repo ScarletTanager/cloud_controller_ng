@@ -66,6 +66,10 @@ module VCAP::CloudController
           @cipher_text = Encryptor.encrypt_with_iv(input, salt, iv)
         end
 
+        it 'decrypts a string encrypted with the legacy key' do
+          expect(Encryptor.decrypt(encrypted_string, salt)).to eql(input)
+        end
+
         it 'generates a unique IV of the correct length' do
           expect(iv.bytesize).to (eql(16))
           expect(Encryptor.generate_iv).not_to eql(iv)

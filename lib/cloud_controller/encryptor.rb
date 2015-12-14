@@ -24,6 +24,7 @@ module VCAP::CloudController::Encryptor
           k[:passphrase]
         )
       end
+
       # TODO: add a rescue clause, KeyManager.new raises on key duplication
       self.key_manager=(VCAP::CloudController::KeyManager.new(ekey, dkeys))
     end
@@ -92,17 +93,19 @@ module VCAP::CloudController::Encryptor
         fields = decoded.unpack(pack_format)
         ciphertext_len = fields[4]
 
-        cipher.key=(key_manager.decryption_key(fields[1].strip).key)
-        cipher.iv=(fields[3])
+        key_label = fields[1].strip
+        if key_manager.decryption_key(key_label) != nil then
+          cipher.key=(key_manager.decryption_key(key_label).key)
+          cipher.iv=(fields[3])
 
-        fields = decoded.unpack(pack_format + ciphertext_len.to_s)
-        ciphertext = fields[5]
-
-        return run_cipher(cipher, ciphertext, nil)
-      else
-        cipher.pkcs5_keyivgen(db_encryption_key, salt)
-        run_cipher(cipher, decoded, salt)
+          fields = decoded.unpack(pack_format + ciphertext_len.to_s)
+          ciphertext = fields[5]
+          return run_cipher(cipher, ciphertext, nil)
+        end
       end
+
+      cipher.pkcs5_keyivgen(db_encryption_key, salt)
+      run_cipher(cipher, decoded, salt)
     end
 
     attr_accessor :db_encryption_key, :key_manager
