@@ -268,7 +268,6 @@ module VCAP::CloudController
       def configure_components(config)
         @config = config
 
-        Encryptor.db_encryption_key = config[:db_encryption_key]
         Encryptor.configure(config)
         AccountCapacity.configure(config)
         ResourcePool.instance = ResourcePool.new(config)

@@ -10,15 +10,18 @@ module VCAP::CloudController::Encryptor
     IV_LEN = 16
 
     def configure(config)
-      conf_key = 'crypto_keys'.to_sym
-      return unless config.key?(conf_key)
+      if config.key?(:db_encryption_key) then
+        self.db_encryption_key = config[:db_encryption_key]
+      end
+      return unless config.key?(:crypto_keys)
+      
       dkeys = Hash.new
       ekey = VCAP::CloudController::Key.new(
-        config[conf_key][:encryption][:label],
-        config[conf_key][:encryption][:passphrase]
+        config[:crypto_keys][:encryption][:label],
+        config[:crypto_keys][:encryption][:passphrase]
       )
 
-      config[conf_key][:decryption].each do |k|
+      config[:crypto_keys][:decryption].each do |k|
         dkeys[k[:label]] = VCAP::CloudController::Key.new(
           k[:label],
           k[:passphrase]
@@ -26,7 +29,7 @@ module VCAP::CloudController::Encryptor
       end
 
       # TODO: add a rescue clause, KeyManager.new raises on key duplication
-      self.key_manager=(VCAP::CloudController::KeyManager.new(ekey, dkeys))
+      self.key_manager = VCAP::CloudController::KeyManager.new(ekey, dkeys)
     end
 
     def generate_salt
@@ -49,8 +52,8 @@ module VCAP::CloudController::Encryptor
 
       cipher = make_cipher.encrypt
 
-      cipher.key=(key_manager.encryption_key.key)
-      cipher.iv=(iv)
+      cipher.key = key_manager.encryption_key.key
+      cipher.iv = iv
       
       ciphertext = run_cipher(cipher, input, nil)
 
@@ -73,14 +76,10 @@ module VCAP::CloudController::Encryptor
 
     def encrypt(input, salt)
       return nil unless input
+      return encrypt_with_iv(input, salt, generate_iv) if key_manager
+
       cipher = make_cipher.encrypt
-
-      if key_manager then
-        return encrypt_with_iv(input, salt, generate_iv)
-      else
-        cipher.pkcs5_keyivgen(db_encryption_key, salt)
-      end 
-
+      cipher.pkcs5_keyivgen(db_encryption_key, salt)
       Base64.strict_encode64(run_cipher(cipher, input, salt))
     end
 

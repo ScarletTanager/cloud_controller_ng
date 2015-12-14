@@ -13,16 +13,12 @@ module VCAP::CloudController
       end
     end
 
-    attr_accessor :label
+    attr_accessor :label, :key
 
     def initialize(label, passphrase)
       raise if label.bytesize > Key.label_maxlen
-      self.label=(label)
-      @key = OpenSSL::HMAC.new(passphrase, OpenSSL::Digest.new('sha1')).to_s
-    end
-
-    def key
-      @key
+      self.label = label
+      self.key = OpenSSL::HMAC.new(passphrase, OpenSSL::Digest.new('sha1')).to_s
     end
   end
 end

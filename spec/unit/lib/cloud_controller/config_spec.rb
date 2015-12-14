@@ -300,9 +300,15 @@ module VCAP::CloudController
 
       it 'sets up the db encryption and decryption key passphrases' do
         Config.configure_components(@test_config)
-        expect(Encryptor.key_manager.decryption_key('1')).not_to be_nil
-        expect(Encryptor.key_manager.encryption_key.label).to eql('3')
-        expect(Encryptor.key_manager.encryption_key.key).not_to eql('encryption_passphrase')
+        # expect(Encryptor.key_manager.decryption_key('1')).not_to be_nil
+        expect(Encryptor.key_manager.decryption_key('1')).to have_attributes(
+          :label => '1',
+          :key => OpenSSL::HMAC.new('v1_decryption_passphrase', OpenSSL::Digest.new('sha1')).to_s
+        )
+        expect(Encryptor.key_manager.encryption_key).to have_attributes(
+          :label => '3',
+          :key => OpenSSL::HMAC.new('encryption_passphrase', OpenSSL::Digest.new('sha1')).to_s
+        )
       end
 
       it 'sets up the account capacity' do

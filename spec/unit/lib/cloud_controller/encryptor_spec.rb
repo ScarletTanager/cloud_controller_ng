@@ -50,19 +50,36 @@ module VCAP::CloudController
       end
 
       context 'using crypto_keys in the configuration' do
-        let(:km) { KeyManager.new(
-          Key.new('v3', 'v3-encryption-key'),
-              {
-                'v2' => Key.new('v2', 'v2-encryption-key'),
-                'v1' => Key.new('v1', 'v1-encryption-key'),
-              }
-            )
-          }
+        # let(:km) { KeyManager.new(
+        #   Key.new('v3', 'v3-encryption-key'),
+        #       {
+        #         'v2' => Key.new('v2', 'v2-encryption-key'),
+        #         'v1' => Key.new('v1', 'v1-encryption-key'),
+        #       }
+        #     )
+        #   }
 
         let(:iv) { Encryptor.generate_iv }
 
         before do
-          allow(VCAP::CloudController::Encryptor).to receive(:key_manager).and_return(km)
+          Encryptor.configure({
+            crypto_keys: {
+              encryption: {
+                label: 'v3',
+                passphrase: 'v3-encryption-key',
+              },
+              decryption: [
+                {
+                  label: 'v2',
+                  passphrase: 'v2-encryption-key',
+                },
+                {
+                  label: 'v1',
+                  passphrase: 'v1-encryption-key',
+                },
+              ],
+            },
+          })
           @cipher_text = Encryptor.encrypt_with_iv(input, salt, iv)
         end
 
@@ -70,22 +87,16 @@ module VCAP::CloudController
           expect(Encryptor.decrypt(encrypted_string, salt)).to eql(input)
         end
 
-        it 'generates a unique IV of the correct length' do
-          expect(iv.bytesize).to (eql(16))
-          expect(Encryptor.generate_iv).not_to eql(iv)
+        describe 'generating an IV' do
+          it 'generates a unique IV of the correct length' do
+            expect(iv.bytesize).to (eql(16))
+            expect(Encryptor.generate_iv).not_to eql(iv)
+          end
         end
-
-        it 'generates the correct pack format' do
-          expect(Encryptor.pack_format).to eql(
-            "CA" +
-            Key.label_maxlen.to_s +
-            "Ca16Qa"
-          )
-        end
-
 
         it 'encrypts using the current encryption key' do
           expect(@cipher_text).not_to eql(encrypted_string)
+          expect(@cipher_text).to eql(Encryptor.encrypt_with_iv(input, salt, iv))
         end
 
         it 'decrypts using the correct decryption key' do

@@ -3,7 +3,7 @@ module VCAP::CloudController
     attr_accessor :encryption_key
 
     def initialize(ekey, dkeys)
-      self.encryption_key=(ekey)
+      self.encryption_key = ekey
       @dkeys = Hash.new
       @dkeys[ekey.label] = ekey
       dkeys.each do |l,dk|
