@@ -50,15 +50,6 @@ module VCAP::CloudController
       end
 
       context 'using crypto_keys in the configuration' do
-        # let(:km) { KeyManager.new(
-        #   Key.new('v3', 'v3-encryption-key'),
-        #       {
-        #         'v2' => Key.new('v2', 'v2-encryption-key'),
-        #         'v1' => Key.new('v1', 'v1-encryption-key'),
-        #       }
-        #     )
-        #   }
-
         let(:iv) { Encryptor.generate_iv }
 
         before do
@@ -88,14 +79,16 @@ module VCAP::CloudController
         end
 
         describe 'generating an IV' do
-          it 'generates a unique IV of the correct length' do
+          it 'generates an IV of the correct length' do
             expect(iv.bytesize).to (eql(16))
+          end
+
+          it 'generates a unique IV' do
             expect(Encryptor.generate_iv).not_to eql(iv)
           end
         end
 
         it 'encrypts using the current encryption key' do
-          expect(@cipher_text).not_to eql(encrypted_string)
           expect(@cipher_text).to eql(Encryptor.encrypt_with_iv(input, salt, iv))
         end
 

@@ -10,11 +10,10 @@ module VCAP::CloudController::Encryptor
     IV_LEN = 16
 
     def configure(config)
-      if config.key?(:db_encryption_key) then
-        self.db_encryption_key = config[:db_encryption_key]
-      end
-      return unless config.key?(:crypto_keys)
       
+      self.db_encryption_key = config[:db_encryption_key] if config.key?(:db_encryption_key)
+      return unless config.key?(:crypto_keys)
+
       dkeys = Hash.new
       ekey = VCAP::CloudController::Key.new(
         config[:crypto_keys][:encryption][:label],
