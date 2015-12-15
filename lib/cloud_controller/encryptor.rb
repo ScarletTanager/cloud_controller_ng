@@ -39,11 +39,6 @@ module VCAP::CloudController::Encryptor
       OpenSSL::Random.random_bytes(IV_LEN)
     end
 
-    def pack_format
-      "CA" + VCAP::CloudController::Key.label_maxlen.to_s +
-        "Ca" + IV_LEN.to_s + "Qa"
-    end
-
     def encrypt_with_iv(input, salt, iv)
       return nil unless input
       return nil unless iv
@@ -56,21 +51,18 @@ module VCAP::CloudController::Encryptor
       
       ciphertext = run_cipher(cipher, input, nil)
 
-      pack_format = "CA" +
-        VCAP::CloudController::Key.label_maxlen.to_s +
-        "Ca" + IV_LEN.to_s + "Qa" + ciphertext.bytesize.to_s
-
-
-      packed = [
-        key_manager.encryption_key.label.bytesize,
+      packaged = Base64.strict_encode64(key_manager.encryption_key.label.bytesize.to_s)
+      [
         key_manager.encryption_key.label,
         iv.bytesize,
         iv,
         ciphertext.bytesize,
         ciphertext
-      ].pack(pack_format)
+      ].each do |v|
+        packaged << ':' << Base64.strict_encode64(v.to_s)
+      end
 
-      Base64.strict_encode64(packed)
+      return packaged
     end
 
     def encrypt(input, salt)
@@ -85,23 +77,22 @@ module VCAP::CloudController::Encryptor
     def decrypt(encrypted_input, salt)
       return nil unless encrypted_input
       cipher = make_cipher.decrypt
-      decoded = Base64.decode64(encrypted_input)
 
-      if key_manager then
-        fields = decoded.unpack(pack_format)
-        ciphertext_len = fields[4]
+      if key_manager && encrypted_input =~ /:/ then
+        
+          fields = encrypted_input.split(':').map { |f| Base64.decode64(f)}
+          ciphertext_len = fields[4].to_i
 
-        key_label = fields[1].strip
-        if key_manager.decryption_key(key_label) != nil then
-          cipher.key=(key_manager.decryption_key(key_label).key)
-          cipher.iv=(fields[3])
-
-          fields = decoded.unpack(pack_format + ciphertext_len.to_s)
-          ciphertext = fields[5]
-          return run_cipher(cipher, ciphertext, nil)
-        end
+          key_label = fields[1]
+          if key_manager.decryption_key(key_label) != nil then
+            cipher.key = key_manager.decryption_key(key_label).key
+            cipher.iv = fields[3]
+            ciphertext = fields[5]
+            return run_cipher(cipher, ciphertext, nil)
+          end
       end
 
+      decoded = Base64.decode64(encrypted_input)
       cipher.pkcs5_keyivgen(db_encryption_key, salt)
       run_cipher(cipher, decoded, salt)
     end

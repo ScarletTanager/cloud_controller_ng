@@ -26,7 +26,7 @@ module VCAP::CloudController
     end
 
     it 'returns the maximum label length' do
-      expect(Key.label_maxlen).to be > 0
+      expect(Key.label_maxlen).to eql(32)
     end
   end
 end
